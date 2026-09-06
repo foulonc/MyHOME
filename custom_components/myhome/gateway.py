@@ -91,6 +91,11 @@ class MyHOMEGatewayHandler:
         self.hass = hass
         self.config_entry = config_entry
         self.generate_events = generate_events
+        # Device registry id of the gateway device, filled in by
+        # async_setup_entry once the device has been created. Entities need it
+        # for `via_device_id`, which takes an id rather than an identifier
+        # tuple.
+        self.device_registry_id: str | None = None
         self.gateway = OWNGateway(build_info)
         self._terminate_listener = False
         self._terminate_sender = False
