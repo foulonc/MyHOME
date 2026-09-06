@@ -376,7 +376,10 @@ class MyhomeOptionsFlowHandler(OptionsFlow):
 
     def __init__(self, config_entry):
         """Initialize MyHome options flow."""
-        self.config_entry = config_entry
+        # `self.config_entry` is a read-only property provided by OptionsFlow
+        # since HA 2024.11 (the setter was removed), so keep our own reference
+        # instead of assigning to it.
+        self._entry = config_entry
         self.options = dict(config_entry.options)
         self.data = dict(config_entry.data)
         if CONF_WORKER_COUNT not in self.options:
@@ -414,8 +417,8 @@ class MyhomeOptionsFlowHandler(OptionsFlow):
 
             if not errors:
                 if _data_update:
-                    self.hass.config_entries.async_update_entry(self.config_entry, data=self.data)
-                    await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+                    self.hass.config_entries.async_update_entry(self._entry, data=self.data)
+                    await self.hass.config_entries.async_reload(self._entry.entry_id)
 
                 return self.async_create_entry(title="", data=self.options)
 
