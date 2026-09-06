@@ -2,7 +2,7 @@
   "domain": "myhome",
   "name": "MyHOME",
   "codeowners": [
-    "@anotherjulien"
+    "@foulonc"
   ],
   "config_flow": true,
   "documentation": "https://github.com/foulonc/MyHOME",
@@ -69,5 +69,5 @@
       "modelName": "MH201"
     }
   ],
-  "version": "0.9.4"
+  "version": "0.9.5"
 }
