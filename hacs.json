@@ -1,7 +1,5 @@
 {
-  "name": "MyHome",
-  "zip_release": true,
-  "filename": "myhome.zip",
+  "name": "MyHome (foulonc fork)",
   "country": [
     "GB",
     "FR",
