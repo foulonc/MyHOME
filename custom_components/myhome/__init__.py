@@ -31,6 +31,20 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS = ["light", "switch", "cover", "climate", "binary_sensor", "sensor"]
 
 
+def _as_registry_str(value):
+    """Coerce a device-registry field to a string.
+
+    OWNd reports some gateway attributes (notably `manufacturer`) as a list.
+    The device registry rejects non-string values from HA 2026.12 onwards, and
+    already logs a deprecation warning today.
+    """
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
 async def async_setup(hass, config):
     """Set up the MyHOME component."""
     hass.data[DOMAIN] = {}
@@ -124,10 +138,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         identifiers={
             (DOMAIN, hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].unique_id)
         },
-        manufacturer=hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].manufacturer,
+        manufacturer=_as_registry_str(
+            hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].manufacturer
+        ),
         name=hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].name,
-        model=hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].model,
-        sw_version=hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].firmware,
+        model=_as_registry_str(
+            hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].model
+        ),
+        sw_version=_as_registry_str(
+            hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].firmware
+        ),
+    )
+
+    hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_ENTITY].device_registry_id = (
+        gateway_device_entry.id
     )
 
     await hass.config_entries.async_forward_entry_setups(
@@ -152,8 +176,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     entities_to_be_removed = []
     devices_to_be_removed = [
         device_entry.id
-        for device_entry in device_registry.devices.values()
-        if entry.entry_id in device_entry.config_entries
+        for device_entry in dr.async_entries_for_config_entry(
+            device_registry, entry.entry_id
+        )
     ]
 
     configured_entities = []
@@ -276,8 +301,9 @@ async def async_unload_entry(hass, entry):
 
     LOGGER.info("Unloading MyHome entry.")
 
-    for platform in hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS].keys():
-        await hass.config_entries.async_forward_entry_unload(entry, platform)
+    await hass.config_entries.async_unload_platforms(
+        entry, list(hass.data[DOMAIN][entry.data[CONF_MAC]][CONF_PLATFORMS].keys())
+    )
 
     hass.services.async_remove(DOMAIN, "sync_time")
     hass.services.async_remove(DOMAIN, "send_message")
