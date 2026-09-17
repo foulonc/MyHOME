@@ -5,7 +5,7 @@ Modifications made in this fork, relative to
 satisfy AGPL-3.0 §5(a), which requires a modified work to carry prominent
 notices stating that it was changed.
 
-## Unreleased
+## 0.9.6 — 2026-09-17
 
 - Fixed a malformed debug log call in `MyHOMEGatewayHandler.sending_loop`
   (`gateway.py`): the format string has three placeholders but was passed four
