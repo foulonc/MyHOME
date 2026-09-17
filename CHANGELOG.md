@@ -5,6 +5,15 @@ Modifications made in this fork, relative to
 satisfy AGPL-3.0 §5(a), which requires a modified work to carry prominent
 notices stating that it was changed.
 
+## Unreleased
+
+- Fixed a malformed debug log call in `MyHOMEGatewayHandler.sending_loop`
+  (`gateway.py`): the format string has three placeholders but was passed four
+  arguments, so every sent command raised `TypeError: not all arguments
+  converted during string formatting` inside the logging handler whenever
+  `custom_components.myhome` was set to `debug`. Commands were still sent; only
+  the log line was lost. Present since upstream `anotherjulien/MyHOME` 0.9.4.
+
 ## 0.9.5 — 2026-09-06
 
 Ownership and documentation only. **No functional change**: the integration
