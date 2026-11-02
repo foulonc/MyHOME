@@ -1,5 +1,6 @@
 """Code to handle a MyHome Gateway."""
 import asyncio
+import contextlib
 from typing import Dict, List
 
 from homeassistant.const import (
@@ -68,6 +69,15 @@ from .button import (
     EnableCommandButtonEntity,
 )
 
+# The event session is receive-only, so a TCP session that dies without a FIN
+# (e.g. a router between HA and the gateway reboots and forgets the flow) is
+# never noticed: `get_next()` waits forever while the socket still reads as
+# ESTABLISHED. Treat this much silence as a dead session and reopen it. A
+# periodic status poll keeps a healthy session well inside this: its reply is
+# echoed on the event bus. Without one, the cost is only a cheap reconnect.
+EVENT_SILENCE_TIMEOUT = 120
+EVENT_RECONNECT_DELAY = 30
+
 
 class MyHOMEGatewayHandler:
     """Manages a single MyHOME Gateway."""
@@ -135,17 +145,51 @@ class MyHOMEGatewayHandler:
     async def test(self) -> Dict:
         return await OWNSession(gateway=self.gateway, logger=LOGGER).test_connection()
 
+    @staticmethod
+    async def _close_session(session) -> None:
+        """Close a session that may be half-open or never connected."""
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(session.close(), 5)
+
+    async def _open_event_session(self):
+        """Open an event session, retrying until it succeeds or the listener stops."""
+        while not self._terminate_listener:
+            session = OWNEventSession(gateway=self.gateway, logger=LOGGER)
+            try:
+                result = await asyncio.wait_for(session.connect(), EVENT_SILENCE_TIMEOUT)
+                if (result or {}).get("Success"):
+                    return session
+            except Exception as err:  # pylint: disable=broad-except
+                # no route while a router reboots, a hung or garbled handshake
+                LOGGER.warning("%s Could not open event session: %r", self.log_id, err)
+            await self._close_session(session)
+            await asyncio.sleep(EVENT_RECONNECT_DELAY)
+        return None
+
     async def listening_loop(self):
         self._terminate_listener = False
 
         LOGGER.debug("%s Creating listening worker.", self.log_id)
 
-        _event_session = OWNEventSession(gateway=self.gateway, logger=LOGGER)
-        await _event_session.connect()
+        _event_session = await self._open_event_session()
         self.is_connected = True
 
         while not self._terminate_listener:
-            message = await _event_session.get_next()
+            try:
+                message = await asyncio.wait_for(
+                    _event_session.get_next(), EVENT_SILENCE_TIMEOUT
+                )
+            except Exception as err:  # pylint: disable=broad-except
+                # TimeoutError from the silence watchdog, or a failed reconnect
+                # inside OWNd's get_next(). Cancellation still propagates.
+                LOGGER.warning(
+                    "%s Event session silent or broken (%s), reopening it.",
+                    self.log_id,
+                    type(err).__name__,
+                )
+                await self._close_session(_event_session)
+                _event_session = await self._open_event_session()
+                continue
             LOGGER.debug("%s Message received: `%s`", self.log_id, message)
 
             if self.generate_events:
@@ -362,7 +406,7 @@ class MyHOMEGatewayHandler:
                     message,
                 )
 
-        await _event_session.close()
+        await self._close_session(_event_session)
         self.is_connected = False
 
         LOGGER.debug("%s Destroying listening worker.", self.log_id)
