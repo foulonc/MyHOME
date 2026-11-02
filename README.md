@@ -42,7 +42,7 @@ This fork exists so the code that actually runs can be released and pinned.
 
 ## What this fork fixes
 
-Everything upstream's fix does, plus five things it does not:
+Everything upstream's fix does, plus six things it does not:
 
 | Fix | Without it |
 |---|---|
@@ -51,6 +51,7 @@ Everything upstream's fix does, plus five things it does not:
 | `manufacturer` / `model` / `sw_version` coerced to `str` | device registry rejects OWNd's list value (HA 2026.12) |
 | `dr.async_entries_for_config_entry()` replaces `device_registry.devices` | breaks in HA 2027.9 |
 | `async_unload_platforms()` replaces the per-platform unload loop | reload raises `has already been setup!` |
+| Event-session watchdog reopens a silent session | after a router reboot HA silently stops seeing every light change until restarted |
 | `via_device_id` replaces `via_device` | breaks in HA 2027.8 |
 
 That last one deserves a warning if you are patching this yourself: the two

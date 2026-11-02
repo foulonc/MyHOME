@@ -5,6 +5,25 @@ Modifications made in this fork, relative to
 satisfy AGPL-3.0 §5(a), which requires a modified work to carry prominent
 notices stating that it was changed.
 
+## 0.9.7 — 2026-11-02
+
+- Event-session watchdog in `MyHOMEGatewayHandler.listening_loop`
+  (`gateway.py`). The event session only ever reads, so when its TCP session
+  died without a FIN, `get_next()` waited forever while the socket still
+  showed `ESTABLISHED`: Home Assistant silently stopped seeing every light,
+  switch and sensor change until it was restarted. Seen in the field when the
+  router between HA and the gateway rebooted for a firmware update and forgot
+  the flow; HA stayed deaf for 2.5 days. The loop now reopens the session
+  after `EVENT_SILENCE_TIMEOUT` (120 s) without a frame, or when the read
+  raises.
+- Opening the event session now retries every `EVENT_RECONNECT_DELAY` (30 s)
+  instead of letting the listener task die on the first error (e.g. no route
+  to the gateway while that router is still booting), and gives up on a
+  hung handshake after 120 s. Failed attempts close their socket so they do
+  not use up the gateway's session slots.
+- `tests/test_event_watchdog.py` added: fails on 0.9.6 (`only 1 connects`),
+  passes here. Run it in an environment with Home Assistant and OWNd.
+
 ## 0.9.6 — 2026-09-17
 
 - Fixed a malformed debug log call in `MyHOMEGatewayHandler.sending_loop`
